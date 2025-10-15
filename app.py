@@ -1,33 +1,36 @@
+# app.py (secure version)
 import streamlit as st
+import pandas as pd
+import io
+import gc
+from processing import process_df
 
-# --------- eenvoudige wachtwoordbeveiliging ----------
+st.set_page_config(page_title="Divider Calculatie", layout="wide")
+
+# --- LOGIN (formulier-variant) ---
 PASSWORD = st.secrets.get("APP_PASSWORD", None)
 
 if "auth" not in st.session_state:
     st.session_state.auth = False
 
 if not st.session_state.auth:
-    pw = st.text_input("Voer app-wachtwoord in", type="password")
-    if st.button("Login"):
+    with st.form("login_form"):
+        st.markdown("**Log in om de app te gebruiken**")
+        pw = st.text_input("Voer app-wachtwoord in", type="password")
+        submitted = st.form_submit_button("Login")
+    if submitted:
         if PASSWORD is None:
-            st.error("App wachtwoord is nog niet ingesteld (beheerder moet st.secrets invullen).")
+            st.error("App wachtwoord is nog niet ingesteld. Beheerder moet st.secrets invullen.")
         elif pw == PASSWORD:
             st.session_state.auth = True
-            st.experimental_rerun()
+            st.success("Ingelogd — u kunt nu verder")
         else:
             st.error("Verkeerd wachtwoord")
-    st.stop()  # stopt de rest van de app totdat ingelogd
+    if not st.session_state.auth:
+        st.stop()
 # ----------------------------------------------------
 
-# app.py
-import streamlit as st
-import pandas as pd
-import io
-from processing import process_df
-
-st.set_page_config(page_title="Divider Calculatie", layout="wide")
 st.title("Divider Calculatie - upload Excel en download resultaat")
-
 st.markdown("Upload je Excel bestand. Verwachte kolommen: Stuklijst, Soort, Omschrijving, P1..P5, Netto lengte PL")
 
 # Divider editor with defaults
@@ -48,24 +51,44 @@ height_override = st.number_input("Hoogte override voor 95mm check (0 = geen)", 
 height_override_val = None if height_override == 0 else int(height_override)
 
 uploaded = st.file_uploader("Excel (xlsx)", type=["xlsx", "xls"])
+
+# Veiligheidschecks voor uploads
+MAX_BYTES = 5 * 1024 * 1024  # 5 MB, wijzig naar wens
+
 if uploaded is not None:
+    size = uploaded.getbuffer().nbytes
+    if size > MAX_BYTES:
+        st.error(f"Bestand te groot ({round(size/1024/1024,2)} MB). Maximaal {MAX_BYTES/(1024*1024)} MB toegestaan.")
+        st.stop()
     try:
         df_in = pd.read_excel(uploaded)
     except Exception as e:
         st.error("Kon het Excel bestand niet lezen: " + str(e))
-        df_in = None
+        st.stop()
 
-    if df_in is not None:
-        st.markdown("Voorbeeld van je bestand")
-        st.dataframe(df_in.head(), use_container_width=True)
+    # Kolomvalidatie
+    required = ["Stuklijst","Soort","Omschrijving","P1","P2","P3","P4","P5","Netto lengte PL"]
+    missing = [c for c in required if c not in df_in.columns]
+    if missing:
+        st.error(f"Ontbrekende kolommen: {missing}. Pas je Excel aan of pas de kolomnamen in processing.py.")
+        st.stop()
 
-        if st.button("Run analysis"):
-            with st.spinner("Verwerken..."):
-                out_df = process_df(df_in, dividers_rows=div_df.to_dict(orient="records"), height_override_for_95=height_override_val)
-                buf = io.BytesIO()
-                with pd.ExcelWriter(buf, engine="openpyxl") as writer:
-                    out_df.to_excel(writer, index=False, sheet_name="Indeling")
-                buf.seek(0)
-                st.success("Klaar, download hieronder")
-                st.download_button("Download indeling_resultaat.xlsx", data=buf, file_name="indeling_resultaat.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                st.dataframe(out_df.head(), use_container_width=True)
+    st.markdown("Voorbeeld van je bestand")
+    st.dataframe(df_in.head(), use_container_width=True)
+
+    if st.button("Run analysis"):
+        with st.spinner("Verwerken..."):
+            out_df = process_df(df_in, dividers_rows=div_df.to_dict(orient="records"), height_override_for_95=height_override_val)
+            buf = io.BytesIO()
+            with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+                out_df.to_excel(writer, index=False, sheet_name="Indeling")
+            buf.seek(0)
+            st.success("Klaar, download hieronder")
+            st.download_button("Download indeling_resultaat.xlsx", data=buf, file_name="indeling_resultaat.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            st.dataframe(out_df.head(), use_container_width=True)
+            # Opruimen
+            try:
+                del buf
+                gc.collect()
+            except:
+                pass
