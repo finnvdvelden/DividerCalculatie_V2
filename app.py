@@ -53,7 +53,7 @@ height_override_val = None if height_override == 0 else int(height_override)
 uploaded = st.file_uploader("Excel (xlsx)", type=["xlsx", "xls"])
 
 # Veiligheidschecks voor uploads
-MAX_BYTES = 5 * 1024 * 1024  # 5 MB, wijzig naar wens
+MAX_BYTES = 50 * 1024 * 1024  # 50 MB, wijzig naar wens
 
 if uploaded is not None:
     size = uploaded.getbuffer().nbytes
