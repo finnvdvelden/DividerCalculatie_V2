@@ -1,3 +1,24 @@
+import streamlit as st
+
+# --------- eenvoudige wachtwoordbeveiliging ----------
+PASSWORD = st.secrets.get("APP_PASSWORD", None)
+
+if "auth" not in st.session_state:
+    st.session_state.auth = False
+
+if not st.session_state.auth:
+    pw = st.text_input("Voer app-wachtwoord in", type="password")
+    if st.button("Login"):
+        if PASSWORD is None:
+            st.error("App wachtwoord is nog niet ingesteld (beheerder moet st.secrets invullen).")
+        elif pw == PASSWORD:
+            st.session_state.auth = True
+            st.experimental_rerun()
+        else:
+            st.error("Verkeerd wachtwoord")
+    st.stop()  # stopt de rest van de app totdat ingelogd
+# ----------------------------------------------------
+
 # app.py
 import streamlit as st
 import pandas as pd
