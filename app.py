@@ -1,0 +1,50 @@
+# app.py
+import streamlit as st
+import pandas as pd
+import io
+from processing import process_df
+
+st.set_page_config(page_title="Divider Calculatie", layout="wide")
+st.title("Divider Calculatie - upload Excel en download resultaat")
+
+st.markdown("Upload je Excel bestand. Verwachte kolommen: Stuklijst, Soort, Omschrijving, P1..P5, Netto lengte PL")
+
+# Divider editor with defaults
+default = [
+    {"name":"2×2","L":166,"B":117,"H":52},
+    {"name":"2×4","L":166,"B":57,"H":52},
+    {"name":"3×2","L":111,"B":113,"H":52},
+    {"name":"3×4","L":111,"B":57,"H":52},
+    {"name":"4×2","L":82,"B":115,"H":52},
+    {"name":"4×4","L":82,"B":57,"H":52},
+    {"name":"4×8","L":82,"B":28,"H":52},
+    {"name":"6×4","L":52,"B":56,"H":30},
+]
+st.markdown("Wijzig dividerwaarden als dat nodig is")
+div_df = st.data_editor(pd.DataFrame(default), num_rows="dynamic", use_container_width=True, key="div_editor")
+
+height_override = st.number_input("Hoogte override voor 95mm check (0 = geen)", min_value=0, value=0)
+height_override_val = None if height_override == 0 else int(height_override)
+
+uploaded = st.file_uploader("Excel (xlsx)", type=["xlsx", "xls"])
+if uploaded is not None:
+    try:
+        df_in = pd.read_excel(uploaded)
+    except Exception as e:
+        st.error("Kon het Excel bestand niet lezen: " + str(e))
+        df_in = None
+
+    if df_in is not None:
+        st.markdown("Voorbeeld van je bestand")
+        st.dataframe(df_in.head(), use_container_width=True)
+
+        if st.button("Run analysis"):
+            with st.spinner("Verwerken..."):
+                out_df = process_df(df_in, dividers_rows=div_df.to_dict(orient="records"), height_override_for_95=height_override_val)
+                buf = io.BytesIO()
+                with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+                    out_df.to_excel(writer, index=False, sheet_name="Indeling")
+                buf.seek(0)
+                st.success("Klaar, download hieronder")
+                st.download_button("Download indeling_resultaat.xlsx", data=buf, file_name="indeling_resultaat.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                st.dataframe(out_df.head(), use_container_width=True)
