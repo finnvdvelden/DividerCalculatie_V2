@@ -47,8 +47,14 @@ default = [
 st.markdown("Wijzig dividerwaarden als dat nodig is")
 div_df = st.data_editor(pd.DataFrame(default), num_rows="dynamic", use_container_width=True, key="div_editor")
 
-height_override = st.number_input("Hoogte override voor 95mm check (0 = geen)", min_value=0, value=0)
+# zet standaard op 95 (gebruik 0 om geen override te gebruiken)
+height_override = st.number_input(
+    "Hoogte override voor 95mm check (0 = geen override)",
+    min_value=0,
+    value=95
+)
 height_override_val = None if height_override == 0 else int(height_override)
+
 
 uploaded = st.file_uploader("Excel (xlsx)", type=["xlsx", "xls"])
 
