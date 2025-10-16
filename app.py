@@ -85,12 +85,31 @@ if uploaded is not None:
     if st.button("Run analysis"):
         with st.spinner("Verwerken..."):
             out_df = process_df(df_in, dividers_rows=div_df.to_dict(orient="records"), height_override_for_95=height_override_val)
+
+            # === Nieuw: maak samenvattingen en schrijf meerdere sheets naar het Excel bestand ===
+            summary_52 = out_df['beste indeling (52mm)'].value_counts(dropna=False).rename_axis('divider').reset_index(name='count')
+            summary_95 = out_df['hoogtecheck 95mm'].value_counts(dropna=False).rename_axis('divider').reset_index(name='count')
+
+            # Voeg totaalregel toe
+            total_52 = pd.DataFrame([{'divider': 'Totaal', 'count': int(summary_52['count'].sum())}])
+            total_95 = pd.DataFrame([{'divider': 'Totaal', 'count': int(summary_95['count'].sum())}])
+            summary_52 = pd.concat([summary_52, total_52], ignore_index=True)
+            summary_95 = pd.concat([summary_95, total_95], ignore_index=True)
+
             buf = io.BytesIO()
             with pd.ExcelWriter(buf, engine="openpyxl") as writer:
                 out_df.to_excel(writer, index=False, sheet_name="Indeling")
+                summary_52.to_excel(writer, index=False, sheet_name="Samenvatting_52mm")
+                summary_95.to_excel(writer, index=False, sheet_name="Samenvatting_95mm")
             buf.seek(0)
+
             st.success("Klaar, download hieronder")
-            st.download_button("Download indeling_resultaat.xlsx", data=buf, file_name="indeling_resultaat.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            st.download_button(
+                "Download indeling_resultaat.xlsx",
+                data=buf,
+                file_name="indeling_resultaat.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
             st.dataframe(out_df.head(), use_container_width=True)
             # Opruimen
             try:
